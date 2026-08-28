@@ -7,17 +7,10 @@ terraform {
   }
 }
 
-variable "pat_token" {
-  type        = string
-  description = "GitHub Personal Access Token"
-  sensitive   = true
-}
-
 locals {
-  repo_name = "github-terraform-task-DENIS-95"
+  repo_name = "github-terraform-task-solution"
   user_name = "softservedata"
-
-  pr_tmplt_content = <<-EOT
+  pr_tmplt_content = <<EOT
     ## Describe your changes
 
     ## Issue ticket number and link
@@ -30,12 +23,6 @@ locals {
   EOT
 }
 
-resource "github_repository_collaborator" "a_repo_collaborator" {
-  repository = local.repo_name
-  username   = local.user_name
-  permission = "push"
-}
-
 resource "github_branch" "develop_branch" {
   repository = local.repo_name
   branch     = "develop"
@@ -46,11 +33,36 @@ resource "github_branch_default" "develop_branch_default" {
   branch     = github_branch.develop_branch.branch
 }
 
+resource "github_repository_collaborator" "a_repo_collaborator" {
+  repository = local.repo_name
+  username   = local.user_name
+  permission = "push"
+}
+
+resource "github_branch_protection" "main_protect_rules" {
+  repository_id = local.repo_name
+  pattern       = "main"
+
+  required_pull_request_reviews {
+    require_code_owner_reviews = true
+    required_approving_review_count = 0
+  }
+}
+
+resource "github_branch_protection" "develop_protect_rules" {
+  repository_id = local.repo_name
+  pattern       = "develop"
+
+  required_pull_request_reviews {
+    required_approving_review_count = 2
+  }
+}
+
 resource "github_repository_file" "codeowners" {
   repository          = local.repo_name
   branch              = "main"
   file                = ".github/CODEOWNERS"
-  content             = "* @${local.user_name}"
+  content             = "* @softservedata"
   overwrite_on_create = true
 }
 
@@ -71,30 +83,6 @@ resource "github_repository_file" "develop_pr_template" {
   depends_on          = [github_branch.develop_branch]
 }
 
-resource "github_branch_protection" "main_protect_rules" {
-  repository_id = local.repo_name
-  pattern       = "main"
-
-  required_pull_request_reviews {
-    require_code_owner_reviews      = true
-    required_approving_review_count = 0
-  }
-
-  depends_on = [github_repository_file.codeowners]
-}
-
-resource "github_branch_protection" "develop_protect_rules" {
-  repository_id = local.repo_name
-  pattern       = "develop"
-
-  required_pull_request_reviews {
-    required_approving_review_count = 2
-  }
-
-  depends_on = [github_branch.develop_branch]
-}
-
-# 8. Webhook Discord
 resource "github_repository_webhook" "discord_webhook" {
   repository = local.repo_name
 
@@ -106,7 +94,6 @@ resource "github_repository_webhook" "discord_webhook" {
   events = ["pull_request"]
 }
 
-# 9. Deploy Key
 resource "github_repository_deploy_key" "repository_deploy_key" {
   title      = "DEPLOY_KEY"
   repository = local.repo_name
@@ -117,10 +104,4 @@ resource "github_actions_secret" "pat_secret" {
   repository      = local.repo_name
   secret_name     = "PAT"
   plaintext_value = var.pat_token
-}
-
-resource "github_actions_secret" "terraform_code_secret" {
-  repository      = local.repo_name
-  secret_name     = "TERRAFORM"
-  plaintext_value = file("${path.module}/main.tf")
 }
