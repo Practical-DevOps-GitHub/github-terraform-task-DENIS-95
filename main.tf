@@ -8,7 +8,7 @@ terraform {
 }
 
 locals {
-  repo_name = "github-terraform-task-solution"
+  repo_name = "github-terraform-task-DENIS-95"
   user_name = "softservedata"
 
   pr_tmplt_content = <<-EOT
